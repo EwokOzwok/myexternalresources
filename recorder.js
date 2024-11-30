@@ -1,8 +1,9 @@
 let mediaRecorder;
 let audioChunks = [];
 let mediaStream;
-let websocket;
+let socket;
 
+// Custom handler to start recording
 Shiny.addCustomMessageHandler("startRecording", function(message) {
   if (!mediaRecorder || mediaRecorder.state === "inactive") {
     navigator.mediaDevices.getUserMedia({ audio: true })
@@ -10,15 +11,42 @@ Shiny.addCustomMessageHandler("startRecording", function(message) {
         mediaStream = stream;
         mediaRecorder = new MediaRecorder(stream);
 
+        // Initialize SocketIO connection
+        socket = io.connect("https://evanozmat.com", {
+          path: "/socket.io/",
+          transports: ["websocket"]
+        });
+
+        socket.on("connect", () => {
+          console.log("Socket.IO connection established.");
+        });
+
+        socket.on("transcription", (data) => {
+          // Handle real-time transcription updates
+          console.log("Transcription received: ", data.text);
+          Shiny.setInputValue("transcriptionText", data.text);
+        });
+
+        socket.on("disconnect", () => {
+          console.log("Socket.IO connection disconnected.");
+        });
+
+        socket.on("error", (error) => {
+          console.error("Socket.IO error: ", error);
+        });
+
+        // Send audio data to the server
         mediaRecorder.ondataavailable = event => {
-          audioChunks.push(event.data); // Ensure audio data is pushed to the array
-          websocket.send(event.data); // Ensure audio data is sent via WebSocket
-          console.log("MediaRecorder data available: ", event.data);
+          if (socket && socket.connected) {
+            console.log("Sending audio chunk...");
+            socket.emit("audio_chunk", event.data);
+          }
         };
 
+        // Handle stopping of the recorder
         mediaRecorder.onstop = () => {
           const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-          audioChunks = [];
+          audioChunks = []; // Reset chunks for the next recording
 
           const audioUrl = URL.createObjectURL(audioBlob);
           const audio = document.getElementById('audioPlayback');
@@ -35,42 +63,30 @@ Shiny.addCustomMessageHandler("startRecording", function(message) {
           if (mediaStream) {
             mediaStream.getTracks().forEach(track => track.stop());
           }
-        };
 
-        websocket = new WebSocket('https://evanozmat.com/socket.io/');
-        // websocket = new WebSocket('ws://localhost:8765');
-        websocket.onopen = () => {
-          console.log("WebSocket connection opened.");
-          mediaRecorder.ondataavailable = event => {
-            audioChunks.push(event.data);
-            console.log("Sending audio data to WebSocket.");
-            websocket.send(event.data);
-          };
-        };
-
-        websocket.onclose = () => {
-          console.log("WebSocket connection closed.");
-        };
-
-        websocket.onerror = error => {
-          console.error('WebSocket error: ', error);
+          // Close the SocketIO connection
+          if (socket) {
+            socket.disconnect();
+          }
         };
 
         mediaRecorder.start();
       })
       .catch(error => {
-        console.error('Error accessing microphone: ', error);
-        alert('Error accessing microphone. Please check your browser settings.');
+        console.error("Error accessing microphone: ", error);
+        alert("Error accessing microphone. Please check your browser settings.");
       });
   }
 });
 
+// Custom handler to stop recording
 Shiny.addCustomMessageHandler("stopRecording", function(message) {
   if (mediaRecorder && mediaRecorder.state === "recording") {
     mediaRecorder.stop();
-    // Close WebSocket connection
-    if (websocket && websocket.readyState === WebSocket.OPEN) {
-      websocket.close();
+
+    // Disconnect the SocketIO connection
+    if (socket && socket.connected) {
+      socket.disconnect();
     }
   }
 });
