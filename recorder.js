@@ -37,7 +37,8 @@ Shiny.addCustomMessageHandler("startRecording", function(message) {
           }
         };
 
-        websocket = new WebSocket('ws://localhost:8765');
+        websocket = new WebSocket('wss://evanozmat.com/socket.io/');
+        // websocket = new WebSocket('ws://localhost:8765');
         websocket.onopen = () => {
           console.log("WebSocket connection opened.");
           mediaRecorder.ondataavailable = event => {
