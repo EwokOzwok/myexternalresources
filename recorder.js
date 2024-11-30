@@ -24,7 +24,7 @@ Shiny.addCustomMessageHandler("startRecording", function(message) {
         socket.on("transcription", (data) => {
           // Handle real-time transcription updates
           console.log("Transcription received: ", data.text);
-          Shiny.setInputValue("transcriptionText", data.text);
+          Shiny.setInputValue("transcription", data.text);
         });
 
         socket.on("disconnect", () => {
