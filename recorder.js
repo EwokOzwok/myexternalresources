@@ -6,7 +6,7 @@ let socket;
 // Custom handler to start recording
 Shiny.addCustomMessageHandler("startRecording", function (message) {
   if (!mediaRecorder || mediaRecorder.state === "inactive") {
-    navigator.mediaDevices.getUserMedia({ audio: true })
+    navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000 } })
       .then((stream) => {
         mediaStream = stream;
         // Enhanced audio quality with higher bitrate
