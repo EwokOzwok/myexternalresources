@@ -1,5 +1,4 @@
 let mediaRecorder;
-let audioChunks = [];
 let mediaStream;
 let socket;
 
@@ -52,7 +51,7 @@ function writeString(view, offset, string) {
 // Custom handler to start recording
 Shiny.addCustomMessageHandler("startRecording", function () {
   if (!mediaRecorder || mediaRecorder.state === "inactive") {
-    navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000 } })
+    navigator.mediaDevices.getUserMedia({ audio: true }) // Prompt for microphone access
       .then((stream) => {
         mediaStream = stream;
         mediaRecorder = new MediaRecorder(stream, {
@@ -68,61 +67,31 @@ Shiny.addCustomMessageHandler("startRecording", function () {
 
         socket.on("connect", () => console.log("Socket.IO connection established."));
         socket.on("transcription", (data) => Shiny.setInputValue("transcription", data.text));
-        socket.on("connect_error", (error) => {
-          console.error("Socket.IO connection error: ", error);
-          alert("Unable to connect to the server. Please try again later.");
-        });
+        socket.on("connect_error", (error) => alert("Unable to connect to the server. Please try again later."));
         socket.on("disconnect", () => console.log("Socket.IO connection disconnected."));
 
-        // Handle audio data availability
         mediaRecorder.ondataavailable = (event) => {
           if (socket && socket.connected && event.data.size > 0) {
             const reader = new FileReader();
             reader.readAsArrayBuffer(event.data);
             reader.onloadend = () => {
               const wavBlob = convertToWav(new Uint8Array(reader.result));
-              console.log("Sending WAV audio chunk, size:", wavBlob.size);
               socket.emit("audio_chunk", wavBlob);
             };
-          } else {
-            console.warn("Empty audio chunk received.");
           }
         };
 
         mediaRecorder.onstop = () => {
-          const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-          audioChunks = []; // Reset chunks for next recording
-
-          const audioUrl = URL.createObjectURL(audioBlob);
-          const audio = document.getElementById("audioPlayback");
-          if (audio) {
-            audio.src = audioUrl;
-          }
-
-          const reader = new FileReader();
-          reader.readAsDataURL(audioBlob);
-          reader.onloadend = () => {
-            const base64data = reader.result.split(",")[1];
-            Shiny.setInputValue("audioData", base64data);
-          };
-
           // Stop tracks to release the stream
           if (mediaStream) {
-            mediaStream.getTracks().forEach((track) => {
-              if (track.readyState === "live") {
-                track.stop();
-              }
-            });
+            mediaStream.getTracks().forEach((track) => track.stop());
           }
-
-          // Disconnect from the socket
           if (socket) {
             socket.disconnect();
           }
         };
 
-        // Start recording, sending chunks every 5 seconds
-        mediaRecorder.start(5000); // Adjusted chunk interval
+        mediaRecorder.start(5000); // Sending chunks every 5 seconds
       })
       .catch((error) => {
         console.error("Error accessing microphone: ", error);
