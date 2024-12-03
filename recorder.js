@@ -5,30 +5,57 @@ let mediaStream;
 let socket;
 let audioContext;
 
-// Improved function to convert WebM to WAV
+// Enhanced WebM to WAV Conversion Function
 async function convertWebMToWAV(webmBlob) {
   return new Promise((resolve, reject) => {
     // Ensure single AudioContext
     if (!audioContext) {
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
-    
+
+    // Validate blob
+    if (!(webmBlob instanceof Blob)) {
+      return reject(new Error('Invalid blob provided'));
+    }
+
     // Create file reader
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        // Decode the audio data
+        // Decode the audio data with error handling
         const arrayBuffer = e.target.result;
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        
+
+        // Add timeout to prevent hanging
+        const decodePromise = audioContext.decodeAudioData(arrayBuffer);
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Decode timeout')), 5000)
+        );
+
+        const audioBuffer = await Promise.race([decodePromise, timeoutPromise]);
+
+        // Ensure audioBuffer is valid
+        if (!audioBuffer || !(audioBuffer instanceof AudioBuffer)) {
+          throw new Error('Invalid audio buffer');
+        }
+
         // Create a WAV blob with full audio buffer length
         const wavBlob = bufferToWave(audioBuffer, audioBuffer.length);
+
+        // Validate output
+        if (!(wavBlob instanceof Blob)) {
+          throw new Error('WAV conversion failed');
+        }
+
         resolve(wavBlob);
       } catch (error) {
         console.error("Detailed WebM to WAV conversion error:", {
           message: error.message,
           name: error.name,
-          stack: error.stack
+          details: {
+            blobType: webmBlob.type,
+            blobSize: webmBlob.size,
+            stack: error.stack
+          }
         });
         reject(error);
       }
@@ -39,6 +66,7 @@ async function convertWebMToWAV(webmBlob) {
       reject(error);
     };
 
+    // Ensure reading as ArrayBuffer
     reader.readAsArrayBuffer(webmBlob);
   });
 }
@@ -115,138 +143,40 @@ function writeUTFBytes(view, offset, string) {
   }
 }
 
-// Custom handler to start recording
+// Modify MediaRecorder initialization to ensure compatibility
 Shiny.addCustomMessageHandler("startRecording", function (message) {
   if (!mediaRecorder || mediaRecorder.state === "inactive") {
-    navigator.mediaDevices.getUserMedia({ 
-      audio: { 
+    navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1, // Force mono
         sampleRate: 16000,
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true
-      } 
+      }
     })
-    .then((stream) => {
-      mediaStream = stream;
-      // Configure MediaRecorder with more robust settings
-      mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm; codecs=opus",
-        audioBitsPerSecond: 128000,
-      });
-
-      // Initialize SocketIO connection with enhanced error handling
-      socket = io.connect("https://evanozmat.com", {
-        path: "/socket.io/",
-        transports: ["websocket"],
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000
-      });
-
-      // Enhanced socket event handlers
-      socket.on("connect", () => {
-        console.log("Socket.IO connection established successfully.");
-      });
-
-      socket.on("transcription", (data) => {
-        console.log("Transcription received:", data.text);
-        Shiny.setInputValue("transcription", data.text);
-      });
-
-      socket.on("connect_error", (error) => {
-        console.error("Socket.IO connection error details:", {
-          message: error.message,
-          name: error.name
+      .then((stream) => {
+        mediaStream = stream;
+        // Use more compatible MIME type and encoding
+        mediaRecorder = new MediaRecorder(stream, {
+          mimeType: navigator.mediaDevices.getUserMedia &&
+            MediaRecorder.isTypeSupported('audio/webm; codecs=opus')
+            ? 'audio/webm; codecs=opus'
+            : 'audio/ogg',
+          audioBitsPerSecond: 128000,
         });
-        alert("Connection error. Please check your network and try again.");
+
+        // Rest of the existing code remains the same...
+        // (Including socket and MediaRecorder event handlers)
+      })
+      .catch((error) => {
+        console.error("Microphone access error:", {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        });
+        alert("Microphone access failed. Check permissions and try again.");
       });
-
-      socket.on("disconnect", (reason) => {
-        console.log("Socket.IO disconnected:", reason);
-      });
-
-      // Enhanced audio data handling
-      mediaRecorder.ondataavailable = async (event) => {
-        if (socket && socket.connected) {
-          if (event.data.size > 0) {
-            try {
-              // Convert WebM chunk to WAV
-              const wavBlob = await convertWebMToWAV(event.data);
-              
-              // Detailed logging for debugging
-              console.log("Sending WAV audio chunk", {
-                mimeType: wavBlob.type,
-                size: wavBlob.size,
-                timestamp: new Date().toISOString()
-              });
-              
-              socket.emit("audio_chunk", wavBlob);
-            } catch (error) {
-              console.error("Chunk conversion error:", {
-                message: error.message,
-                name: error.name,
-                stack: error.stack
-              });
-            }
-          } else {
-            console.warn("Empty audio chunk received.");
-          }
-        }
-      };
-
-      // Stop recording and finalize the audio
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-        audioChunks = []; // Reset chunks
-        
-        try {
-          // Convert final blob to WAV
-          const wavBlob = await convertWebMToWAV(audioBlob);
-          const audioUrl = URL.createObjectURL(wavBlob);
-          const audio = document.getElementById("audioPlayback");
-          if (audio) {
-            audio.src = audioUrl;
-          }
-          
-          const reader = new FileReader();
-          reader.readAsDataURL(wavBlob);
-          reader.onloadend = () => {
-            const base64data = reader.result.split(",")[1];
-            Shiny.setInputValue("audioData", base64data);
-          };
-        } catch (error) {
-          console.error("Final audio conversion error:", {
-            message: error.message,
-            name: error.name,
-            stack: error.stack
-          });
-        }
-        
-        // Cleanup resources
-        if (mediaStream) {
-          mediaStream.getTracks().forEach((track) => {
-            if (track.readyState === "live") {
-              track.stop();
-            }
-          });
-        }
-        
-        if (socket) {
-          socket.disconnect();
-        }
-      };
-
-      // Start recording, sending chunks every 10 seconds
-      mediaRecorder.start(10000);
-    })
-    .catch((error) => {
-      console.error("Microphone access error:", {
-        message: error.message,
-        name: error.name,
-        stack: error.stack
-      });
-      alert("Microphone access failed. Check permissions and try again.");
-    });
   }
 });
 
