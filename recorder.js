@@ -4,17 +4,21 @@ let mediaStream;
 let socket;
 
 // Custom handler to start recording
-Shiny.addCustomMessageHandler("startRecording", function(message) {
+Shiny.addCustomMessageHandler("startRecording", function (message) {
   if (!mediaRecorder || mediaRecorder.state === "inactive") {
     navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(stream => {
+      .then((stream) => {
         mediaStream = stream;
-        mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+        // Enhanced audio quality with higher bitrate
+        mediaRecorder = new MediaRecorder(stream, {
+          mimeType: "audio/webm",
+          audioBitsPerSecond: 256000, // Increase bitrate for better audio quality
+        });
 
         // Initialize SocketIO connection
         socket = io.connect("https://evanozmat.com", {
           path: "/socket.io/",
-          transports: ["websocket"]
+          transports: ["websocket"],
         });
 
         socket.on("connect", () => {
@@ -35,10 +39,14 @@ Shiny.addCustomMessageHandler("startRecording", function(message) {
           console.log("Socket.IO connection disconnected.");
         });
 
-        mediaRecorder.ondataavailable = event => {
+        mediaRecorder.ondataavailable = (event) => {
           if (socket && socket.connected) {
-            console.log("Sending audio chunk...");
-            socket.emit("audio_chunk", event.data);
+            if (event.data.size > 0) {
+              console.log("Sending audio chunk, size:", event.data.size);
+              socket.emit("audio_chunk", event.data);
+            } else {
+              console.warn("Empty audio chunk received.");
+            }
           }
         };
 
@@ -47,19 +55,21 @@ Shiny.addCustomMessageHandler("startRecording", function(message) {
           audioChunks = []; // Reset chunks for the next recording
 
           const audioUrl = URL.createObjectURL(audioBlob);
-          const audio = document.getElementById('audioPlayback');
-          audio.src = audioUrl;
+          const audio = document.getElementById("audioPlayback");
+          if (audio) {
+            audio.src = audioUrl;
+          }
 
           const reader = new FileReader();
           reader.readAsDataURL(audioBlob);
           reader.onloadend = () => {
-            const base64data = reader.result.split(',')[1];
-            Shiny.setInputValue('audioData', base64data);
+            const base64data = reader.result.split(",")[1];
+            Shiny.setInputValue("audioData", base64data);
           };
 
           if (mediaStream) {
-            mediaStream.getTracks().forEach(track => {
-              if (track.readyState === 'live') {
+            mediaStream.getTracks().forEach((track) => {
+              if (track.readyState === "live") {
                 track.stop();
               }
             });
@@ -70,9 +80,9 @@ Shiny.addCustomMessageHandler("startRecording", function(message) {
           }
         };
 
-        mediaRecorder.start(10000); // Send chunks every 1 second
+        mediaRecorder.start(5000); // Send chunks every 5 seconds to balance load
       })
-      .catch(error => {
+      .catch((error) => {
         console.error("Error accessing microphone: ", error);
         alert("Error accessing microphone. Please check your browser settings.");
       });
@@ -80,7 +90,7 @@ Shiny.addCustomMessageHandler("startRecording", function(message) {
 });
 
 // Custom handler to stop recording
-Shiny.addCustomMessageHandler("stopRecording", function(message) {
+Shiny.addCustomMessageHandler("stopRecording", function (message) {
   if (mediaRecorder && mediaRecorder.state === "recording") {
     mediaRecorder.stop();
     if (socket && socket.connected) {
