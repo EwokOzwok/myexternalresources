@@ -86,7 +86,7 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
         };
 
         // Start recording, sending chunks every 5 seconds
-        mediaRecorder.start(5000); // Adjusted to send chunks every 5 seconds
+        mediaRecorder.start(10000); // Adjusted to send chunks every 5 seconds
       })
       .catch((error) => {
         console.error("Error accessing microphone: ", error);
