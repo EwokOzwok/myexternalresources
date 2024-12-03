@@ -9,10 +9,10 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
     navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000 } })
       .then((stream) => {
         mediaStream = stream;
-        // Enhanced audio quality with higher bitrate
+        // Configure MediaRecorder to capture audio only (audio/webm)
         mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm",
-        audioBitsPerSecond: 128000,
+          mimeType: "audio/webm",
+          audioBitsPerSecond: 128000,
         });
 
         // Initialize SocketIO connection
@@ -39,6 +39,7 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
           console.log("Socket.IO connection disconnected.");
         });
 
+        // Handle audio data availability (only audio chunks)
         mediaRecorder.ondataavailable = (event) => {
           if (socket && socket.connected) {
             if (event.data.size > 0) {
@@ -50,6 +51,8 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
             }
           }
         };
+
+        // Stop recording and finalize the audio when recording stops
         mediaRecorder.onstop = () => {
           const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
           audioChunks = []; // Reset chunks for the next recording
@@ -67,6 +70,7 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
             Shiny.setInputValue("audioData", base64data);
           };
 
+          // Stop tracks to release the stream
           if (mediaStream) {
             mediaStream.getTracks().forEach((track) => {
               if (track.readyState === "live") {
@@ -75,12 +79,14 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
             });
           }
 
+          // Disconnect from the socket
           if (socket) {
             socket.disconnect();
           }
         };
 
-        mediaRecorder.start(10000); // Send chunks every 5 seconds to balance load
+        // Start recording, sending chunks every 5 seconds
+        mediaRecorder.start(5000); // Adjusted to send chunks every 5 seconds
       })
       .catch((error) => {
         console.error("Error accessing microphone: ", error);
