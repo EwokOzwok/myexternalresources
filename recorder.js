@@ -42,6 +42,7 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
         mediaRecorder.ondataavailable = (event) => {
           if (socket && socket.connected) {
             if (event.data.size > 0) {
+              console.log("Sending audio chunk, MIME type:", event.data.type);
               console.log("Sending audio chunk, size:", event.data.size);
               socket.emit("audio_chunk", event.data);
             } else {
@@ -49,7 +50,6 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
             }
           }
         };
-
         mediaRecorder.onstop = () => {
           const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
           audioChunks = []; // Reset chunks for the next recording
