@@ -11,8 +11,8 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
         mediaStream = stream;
         // Enhanced audio quality with higher bitrate
         mediaRecorder = new MediaRecorder(stream, {
-          mimeType: "audio/webm;codecs=opus",
-          audioBitsPerSecond: 256000, // Increase bitrate for better audio quality
+        mimeType: "audio/webm",
+        audioBitsPerSecond: 128000,
         });
 
         // Initialize SocketIO connection
