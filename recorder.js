@@ -1,3 +1,4 @@
+// NEW RECORDER.JS
 let mediaRecorder;
 let audioChunks = [];
 let mediaStream;
