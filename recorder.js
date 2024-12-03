@@ -3,62 +3,15 @@ let audioChunks = [];
 let mediaStream;
 let socket;
 
-// Function to convert WebM to WAV format
-function convertToWav(audioBuffer) {
-  const wavHeader = createWavHeader(audioBuffer.length);
-  return new Blob([wavHeader, audioBuffer], { type: "audio/wav" });
-}
-
-function createWavHeader(length) {
-  const buffer = new ArrayBuffer(44);
-  const view = new DataView(buffer);
-
-  /* RIFF identifier */
-  writeString(view, 0, "RIFF");
-  /* file length */
-  view.setUint32(4, 36 + length, true);
-  /* RIFF type */
-  writeString(view, 8, "WAVE");
-  /* format chunk identifier */
-  writeString(view, 12, "fmt ");
-  /* format chunk length */
-  view.setUint32(16, 16, true);
-  /* sample format (raw) */
-  view.setUint16(20, 1, true);
-  /* channel count */
-  view.setUint16(22, 1, true); // Mono
-  /* sample rate */
-  view.setUint32(24, 16000, true);
-  /* byte rate (sample rate * block align) */
-  view.setUint32(28, 16000 * 2, true);
-  /* block align (channel count * bytes per sample) */
-  view.setUint16(32, 2, true);
-  /* bits per sample */
-  view.setUint16(34, 16, true);
-  /* data chunk identifier */
-  writeString(view, 36, "data");
-  /* data chunk length */
-  view.setUint32(40, length, true);
-
-  return buffer;
-}
-
-function writeString(view, offset, string) {
-  for (let i = 0; i < string.length; i++) {
-    view.setUint8(offset + i, string.charCodeAt(i));
-  }
-}
-
 // Custom handler to start recording
 Shiny.addCustomMessageHandler("startRecording", function (message) {
   if (!mediaRecorder || mediaRecorder.state === "inactive") {
     navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000 } })
       .then((stream) => {
         mediaStream = stream;
-
         // Configure MediaRecorder to capture audio only (audio/webm)
         mediaRecorder = new MediaRecorder(stream, {
-          mimeType: "audio/webm",
+          mimeType: "audio/wav",
           audioBitsPerSecond: 128000,
         });
 
@@ -86,18 +39,16 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
           console.log("Socket.IO connection disconnected.");
         });
 
-        // Handle audio data availability
+        // Handle audio data availability (only audio chunks)
         mediaRecorder.ondataavailable = (event) => {
-          if (socket && socket.connected && event.data.size > 0) {
-            const reader = new FileReader();
-            reader.readAsArrayBuffer(event.data);
-            reader.onloadend = () => {
-              const wavBlob = convertToWav(new Uint8Array(reader.result));
-              console.log("Converted WAV audio chunk, size:", wavBlob.size);
-              socket.emit("audio_chunk", wavBlob);
-            };
-          } else {
-            console.warn("Empty audio chunk received.");
+          if (socket && socket.connected) {
+            if (event.data.size > 0) {
+              console.log("Sending audio chunk, MIME type:", event.data.type);
+              console.log("Sending audio chunk, size:", event.data.size);
+              socket.emit("audio_chunk", event.data);
+            } else {
+              console.warn("Empty audio chunk received.");
+            }
           }
         };
 
@@ -134,8 +85,8 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
           }
         };
 
-        // Start recording, sending chunks every 10 seconds
-        mediaRecorder.start(10000);
+        // Start recording, sending chunks every 5 seconds
+        mediaRecorder.start(10000); // Adjusted to send chunks every 10 seconds
       })
       .catch((error) => {
         console.error("Error accessing microphone: ", error);
