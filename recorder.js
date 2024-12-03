@@ -11,7 +11,7 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
         mediaStream = stream;
         // Configure MediaRecorder to capture audio only (audio/webm)
         mediaRecorder = new MediaRecorder(stream, {
-          mimeType: "audio/wav",
+          mimeType: "audio/webm",
           audioBitsPerSecond: 128000,
         });
 
