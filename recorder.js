@@ -1,4 +1,5 @@
 let mediaRecorder;
+let audioChunks = [];
 let mediaStream;
 let socket;
 
@@ -49,11 +50,13 @@ function writeString(view, offset, string) {
 }
 
 // Custom handler to start recording
-Shiny.addCustomMessageHandler("startRecording", function () {
+Shiny.addCustomMessageHandler("startRecording", function (message) {
   if (!mediaRecorder || mediaRecorder.state === "inactive") {
-    navigator.mediaDevices.getUserMedia({ audio: true }) // Prompt for microphone access
+    navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000 } })
       .then((stream) => {
         mediaStream = stream;
+
+        // Configure MediaRecorder to capture audio only (audio/webm)
         mediaRecorder = new MediaRecorder(stream, {
           mimeType: "audio/webm",
           audioBitsPerSecond: 128000,
@@ -65,33 +68,74 @@ Shiny.addCustomMessageHandler("startRecording", function () {
           transports: ["websocket"],
         });
 
-        socket.on("connect", () => console.log("Socket.IO connection established."));
-        socket.on("transcription", (data) => Shiny.setInputValue("transcription", data.text));
-        socket.on("connect_error", (error) => alert("Unable to connect to the server. Please try again later."));
-        socket.on("disconnect", () => console.log("Socket.IO connection disconnected."));
+        socket.on("connect", () => {
+          console.log("Socket.IO connection established.");
+        });
 
+        socket.on("transcription", (data) => {
+          console.log("Transcription received: ", data.text);
+          Shiny.setInputValue("transcription", data.text);
+        });
+
+        socket.on("connect_error", (error) => {
+          console.error("Socket.IO connection error: ", error);
+          alert("Unable to connect to the server. Please try again later.");
+        });
+
+        socket.on("disconnect", () => {
+          console.log("Socket.IO connection disconnected.");
+        });
+
+        // Handle audio data availability
         mediaRecorder.ondataavailable = (event) => {
           if (socket && socket.connected && event.data.size > 0) {
             const reader = new FileReader();
             reader.readAsArrayBuffer(event.data);
             reader.onloadend = () => {
               const wavBlob = convertToWav(new Uint8Array(reader.result));
+              console.log("Converted WAV audio chunk, size:", wavBlob.size);
               socket.emit("audio_chunk", wavBlob);
             };
+          } else {
+            console.warn("Empty audio chunk received.");
           }
         };
 
+        // Stop recording and finalize the audio when recording stops
         mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+          audioChunks = []; // Reset chunks for the next recording
+
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const audio = document.getElementById("audioPlayback");
+          if (audio) {
+            audio.src = audioUrl;
+          }
+
+          const reader = new FileReader();
+          reader.readAsDataURL(audioBlob);
+          reader.onloadend = () => {
+            const base64data = reader.result.split(",")[1];
+            Shiny.setInputValue("audioData", base64data);
+          };
+
           // Stop tracks to release the stream
           if (mediaStream) {
-            mediaStream.getTracks().forEach((track) => track.stop());
+            mediaStream.getTracks().forEach((track) => {
+              if (track.readyState === "live") {
+                track.stop();
+              }
+            });
           }
+
+          // Disconnect from the socket
           if (socket) {
             socket.disconnect();
           }
         };
 
-        mediaRecorder.start(5000); // Sending chunks every 5 seconds
+        // Start recording, sending chunks every 10 seconds
+        mediaRecorder.start(10000);
       })
       .catch((error) => {
         console.error("Error accessing microphone: ", error);
@@ -101,7 +145,7 @@ Shiny.addCustomMessageHandler("startRecording", function () {
 });
 
 // Custom handler to stop recording
-Shiny.addCustomMessageHandler("stopRecording", function () {
+Shiny.addCustomMessageHandler("stopRecording", function (message) {
   if (mediaRecorder && mediaRecorder.state === "recording") {
     mediaRecorder.stop();
     if (socket && socket.connected) {
