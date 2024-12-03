@@ -1,14 +1,17 @@
-// NEW RECORDER.JS
+// Enhanced Recorder.js for Robust Audio Recording and Conversion
 let mediaRecorder;
 let audioChunks = [];
 let mediaStream;
 let socket;
+let audioContext;
 
-// Function to convert WebM to WAV
+// Improved function to convert WebM to WAV
 async function convertWebMToWAV(webmBlob) {
   return new Promise((resolve, reject) => {
-    // Create audio context
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    // Ensure single AudioContext
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
     
     // Create file reader
     const reader = new FileReader();
@@ -18,19 +21,29 @@ async function convertWebMToWAV(webmBlob) {
         const arrayBuffer = e.target.result;
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
         
-        // Create a WAV blob
+        // Create a WAV blob with full audio buffer length
         const wavBlob = bufferToWave(audioBuffer, audioBuffer.length);
         resolve(wavBlob);
       } catch (error) {
-        console.error("Error converting WebM to WAV:", error);
+        console.error("Detailed WebM to WAV conversion error:", {
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        });
         reject(error);
       }
     };
+
+    reader.onerror = (error) => {
+      console.error('FileReader error:', error);
+      reject(error);
+    };
+
     reader.readAsArrayBuffer(webmBlob);
   });
 }
 
-// Helper function to convert AudioBuffer to WAV Blob
+// Enhanced helper function to convert AudioBuffer to WAV Blob
 function bufferToWave(abuffer, len) {
   const numOfChan = abuffer.numberOfChannels;
   const length = len * numOfChan * 2 + 44;
@@ -41,7 +54,7 @@ function bufferToWave(abuffer, len) {
   let offset = 0;
   let pos = 0;
 
-  // write WAVE header
+  // Comprehensive WAV header creation
   // RIFF chunk descriptor
   writeUTFBytes(view, pos, 'RIFF');
   pos += 4;
@@ -74,22 +87,24 @@ function bufferToWave(abuffer, len) {
   view.setUint32(pos, length - pos - 4, true);
   pos += 4;
 
-  // write interleaved data
+  // Interleave and write audio data
   for (let i = 0; i < abuffer.numberOfChannels; i++) {
     channels.push(abuffer.getChannelData(i));
   }
 
   while (pos < length) {
     for (let i = 0; i < numOfChan; i++) {
-      sample = Math.max(-1, Math.min(1, channels[i][offset]));
-      sample = (0.5 + sample < 0 ? sample * 32768 : sample * 32767) | 0;
-      view.setInt16(pos, sample, true);
+      // Improved sample conversion with more robust clamping
+      sample = channels[i][offset];
+      sample = Math.max(-1, Math.min(1, sample));
+      sample = (sample < 0) ? sample * 32768 : sample * 32767;
+      view.setInt16(pos, sample | 0, true);
       pos += 2;
     }
     offset++;
   }
 
-  // create Blob
+  // Create Blob with proper MIME type
   return new Blob([buffer], { type: 'audio/wav' });
 }
 
@@ -103,97 +118,135 @@ function writeUTFBytes(view, offset, string) {
 // Custom handler to start recording
 Shiny.addCustomMessageHandler("startRecording", function (message) {
   if (!mediaRecorder || mediaRecorder.state === "inactive") {
-    navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000 } })
-      .then((stream) => {
-        mediaStream = stream;
-        // Configure MediaRecorder to capture audio only (audio/webm)
-        mediaRecorder = new MediaRecorder(stream, {
-          mimeType: "audio/webm",
-          audioBitsPerSecond: 128000,
-        });
-        // Initialize SocketIO connection
-        socket = io.connect("https://evanozmat.com", {
-          path: "/socket.io/",
-          transports: ["websocket"],
-        });
-        socket.on("connect", () => {
-          console.log("Socket.IO connection established.");
-        });
-        socket.on("transcription", (data) => {
-          console.log("Transcription received: ", data.text);
-          Shiny.setInputValue("transcription", data.text);
-        });
-        socket.on("connect_error", (error) => {
-          console.error("Socket.IO connection error: ", error);
-          alert("Unable to connect to the server. Please try again later.");
-        });
-        socket.on("disconnect", () => {
-          console.log("Socket.IO connection disconnected.");
-        });
-        // Handle audio data availability (only audio chunks)
-        mediaRecorder.ondataavailable = async (event) => {
-          if (socket && socket.connected) {
-            if (event.data.size > 0) {
-              try {
-                // Convert WebM chunk to WAV
-                const wavBlob = await convertWebMToWAV(event.data);
-                
-                console.log("Sending WAV audio chunk, MIME type:", wavBlob.type);
-                console.log("Sending WAV audio chunk, size:", wavBlob.size);
-                
-                socket.emit("audio_chunk", wavBlob);
-              } catch (error) {
-                console.error("Error converting audio chunk:", error);
-              }
-            } else {
-              console.warn("Empty audio chunk received.");
-            }
-          }
-        };
-        // Stop recording and finalize the audio when recording stops
-        mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-          audioChunks = []; // Reset chunks for the next recording
-          
-          try {
-            // Convert final blob to WAV
-            const wavBlob = await convertWebMToWAV(audioBlob);
-            const audioUrl = URL.createObjectURL(wavBlob);
-            const audio = document.getElementById("audioPlayback");
-            if (audio) {
-              audio.src = audioUrl;
-            }
-            
-            const reader = new FileReader();
-            reader.readAsDataURL(wavBlob);
-            reader.onloadend = () => {
-              const base64data = reader.result.split(",")[1];
-              Shiny.setInputValue("audioData", base64data);
-            };
-          } catch (error) {
-            console.error("Error converting final audio blob:", error);
-          }
-          
-          // Stop tracks to release the stream
-          if (mediaStream) {
-            mediaStream.getTracks().forEach((track) => {
-              if (track.readyState === "live") {
-                track.stop();
-              }
-            });
-          }
-          // Disconnect from the socket
-          if (socket) {
-            socket.disconnect();
-          }
-        };
-        // Start recording, sending chunks every 10 seconds
-        mediaRecorder.start(10000);
-      })
-      .catch((error) => {
-        console.error("Error accessing microphone: ", error);
-        alert("Error accessing microphone. Please check your browser settings.");
+    navigator.mediaDevices.getUserMedia({ 
+      audio: { 
+        sampleRate: 16000,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      } 
+    })
+    .then((stream) => {
+      mediaStream = stream;
+      // Configure MediaRecorder with more robust settings
+      mediaRecorder = new MediaRecorder(stream, {
+        mimeType: "audio/webm; codecs=opus",
+        audioBitsPerSecond: 128000,
       });
+
+      // Initialize SocketIO connection with enhanced error handling
+      socket = io.connect("https://evanozmat.com", {
+        path: "/socket.io/",
+        transports: ["websocket"],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+      });
+
+      // Enhanced socket event handlers
+      socket.on("connect", () => {
+        console.log("Socket.IO connection established successfully.");
+      });
+
+      socket.on("transcription", (data) => {
+        console.log("Transcription received:", data.text);
+        Shiny.setInputValue("transcription", data.text);
+      });
+
+      socket.on("connect_error", (error) => {
+        console.error("Socket.IO connection error details:", {
+          message: error.message,
+          name: error.name
+        });
+        alert("Connection error. Please check your network and try again.");
+      });
+
+      socket.on("disconnect", (reason) => {
+        console.log("Socket.IO disconnected:", reason);
+      });
+
+      // Enhanced audio data handling
+      mediaRecorder.ondataavailable = async (event) => {
+        if (socket && socket.connected) {
+          if (event.data.size > 0) {
+            try {
+              // Convert WebM chunk to WAV
+              const wavBlob = await convertWebMToWAV(event.data);
+              
+              // Detailed logging for debugging
+              console.log("Sending WAV audio chunk", {
+                mimeType: wavBlob.type,
+                size: wavBlob.size,
+                timestamp: new Date().toISOString()
+              });
+              
+              socket.emit("audio_chunk", wavBlob);
+            } catch (error) {
+              console.error("Chunk conversion error:", {
+                message: error.message,
+                name: error.name,
+                stack: error.stack
+              });
+            }
+          } else {
+            console.warn("Empty audio chunk received.");
+          }
+        }
+      };
+
+      // Stop recording and finalize the audio
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+        audioChunks = []; // Reset chunks
+        
+        try {
+          // Convert final blob to WAV
+          const wavBlob = await convertWebMToWAV(audioBlob);
+          const audioUrl = URL.createObjectURL(wavBlob);
+          const audio = document.getElementById("audioPlayback");
+          if (audio) {
+            audio.src = audioUrl;
+          }
+          
+          const reader = new FileReader();
+          reader.readAsDataURL(wavBlob);
+          reader.onloadend = () => {
+            const base64data = reader.result.split(",")[1];
+            Shiny.setInputValue("audioData", base64data);
+          };
+        } catch (error) {
+          console.error("Final audio conversion error:", {
+            message: error.message,
+            name: error.name,
+            stack: error.stack
+          });
+        }
+        
+        // Cleanup resources
+        if (mediaStream) {
+          mediaStream.getTracks().forEach((track) => {
+            if (track.readyState === "live") {
+              track.stop();
+            }
+          });
+        }
+        
+        if (socket) {
+          socket.disconnect();
+        }
+      };
+
+      // Start recording, sending chunks every 10 seconds
+      mediaRecorder.start(10000);
+    })
+    .catch((error) => {
+      console.error("Microphone access error:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
+      });
+      alert("Microphone access failed. Check permissions and try again.");
+    });
   }
 });
 
