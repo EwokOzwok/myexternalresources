@@ -7,6 +7,14 @@ let audioContext;
 
 // Improved function to convert WebM to WAV
 async function convertWebMToWAV(webmBlob) {
+  // Reset AudioContext every 5 minutes
+  if (Date.now() - audioContextCreatedAt > 5 * 60 * 1000) {
+    if (audioContext) {
+      audioContext.close();
+    }
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    audioContextCreatedAt = Date.now();
+  }
   return new Promise((resolve, reject) => {
     // Ensure single AudioContext
     if (!audioContext) {
@@ -28,9 +36,22 @@ async function convertWebMToWAV(webmBlob) {
         console.error("Detailed WebM to WAV conversion error:", {
           message: error.message,
           name: error.name,
-          stack: error.stack
+          stack: error.stack,
+          blobType: webmBlob.type,
+          blobSize: webmBlob.size
         });
-        reject(error);
+        
+        // Attempt alternative conversion method
+        try {
+          // Try direct blob to ArrayBuffer conversion
+          const arrayBuffer = await webmBlob.arrayBuffer();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          const wavBlob = bufferToWave(audioBuffer, audioBuffer.length);
+          resolve(wavBlob);
+        } catch (secondaryError) {
+          console.error("Secondary conversion attempt failed:", secondaryError);
+          reject(error);
+        }
       }
     };
 
@@ -173,14 +194,18 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
               // Convert WebM chunk to WAV
               const wavBlob = await convertWebMToWAV(event.data);
               
-              // Detailed logging for debugging
-              console.log("Sending WAV audio chunk", {
-                mimeType: wavBlob.type,
-                size: wavBlob.size,
-                timestamp: new Date().toISOString()
-              });
-              
-              socket.emit("audio_chunk", wavBlob);
+              // Additional type and size validation
+              if (wavBlob && wavBlob.type === 'audio/wav' && wavBlob.size > 0) {
+                console.log("Sending WAV audio chunk", {
+                  mimeType: wavBlob.type,
+                  size: wavBlob.size,
+                  timestamp: new Date().toISOString()
+                });
+                
+                socket.emit("audio_chunk", wavBlob);
+              } else {
+                console.warn("Invalid WAV blob generated");
+              }
             } catch (error) {
               console.error("Chunk conversion error:", {
                 message: error.message,
