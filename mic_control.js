@@ -1,4 +1,4 @@
-// NEW
+// NEW socketio path
 let mediaRecorder;
 let audioChunks = [];
 let socket;
