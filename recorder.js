@@ -95,6 +95,7 @@ function writeUTFBytes(view, offset, string) {
 
 // Custom handler to start recording
 Shiny.addCustomMessageHandler("startRecording", function (message) {
+  audioChunks = []; // Reset audioChunks
   if (!mediaRecorder || mediaRecorder.state === "inactive") {
     navigator.mediaDevices.getUserMedia({
       audio: {
