@@ -1,4 +1,4 @@
-// Enhanced Recorder.js for Robust Audio Recording and Conversion
+// ClaudeAI - Enhanced Recorder.js for Robust Audio Recording and Conversion
 let mediaRecorder;
 let audioChunks = [];
 let mediaStream;
