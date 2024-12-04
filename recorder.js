@@ -4,24 +4,25 @@ let audioChunks = [];
 let mediaStream;
 let socket;
 let audioContext;
+let audioContextCreatedAt;
+
+// Global unhandled promise rejection handler
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+});
 
 // Improved function to convert WebM to WAV
 async function convertWebMToWAV(webmBlob) {
-  // Reset AudioContext every 5 minutes
-  if (Date.now() - audioContextCreatedAt > 5 * 60 * 1000) {
+  // Consolidate AudioContext management
+  if (!audioContext || (audioContextCreatedAt && Date.now() - audioContextCreatedAt > 5 * 60 * 1000)) {
     if (audioContext) {
       audioContext.close();
     }
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
     audioContextCreatedAt = Date.now();
   }
+
   return new Promise((resolve, reject) => {
-    // Ensure single AudioContext
-    if (!audioContext) {
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    
-    // Create file reader
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
@@ -190,6 +191,9 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
       mediaRecorder.ondataavailable = async (event) => {
         if (socket && socket.connected) {
           if (event.data.size > 0) {
+            // Accumulate audio chunks
+            audioChunks.push(event.data);
+
             try {
               // Convert WebM chunk to WAV
               const wavBlob = await convertWebMToWAV(event.data);
@@ -231,6 +235,10 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
           const audio = document.getElementById("audioPlayback");
           if (audio) {
             audio.src = audioUrl;
+            // Revoke URL after metadata is loaded to prevent memory leak
+            audio.onloadedmetadata = () => {
+              URL.revokeObjectURL(audioUrl);
+            };
           }
           
           const reader = new FileReader();
@@ -279,7 +287,7 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
 Shiny.addCustomMessageHandler("stopRecording", function (message) {
   if (mediaRecorder && mediaRecorder.state === "recording") {
     mediaRecorder.stop();
-    if (socket && socket.connected) {
+    if (socket) {
       socket.disconnect();
     }
   }
