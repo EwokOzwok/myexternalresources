@@ -153,7 +153,7 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
           socket.disconnect();
         };
 
-        mediaRecorder.start(10000);
+        mediaRecorder.start(5000);
       })
       .catch((error) => alert("Microphone access failed."));
   }
