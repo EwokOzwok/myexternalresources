@@ -1,4 +1,4 @@
-// updated.
+// enhanced debugging...
 Shiny.addCustomMessageHandler("startTranscription", function(message) {
     navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
@@ -9,12 +9,16 @@ Shiny.addCustomMessageHandler("startTranscription", function(message) {
                 audioChunks.push(event.data);
                 console.log("Audio chunk captured:", event.data);
 
-                // Send audio chunks every 10 seconds
+                // Send audio chunks every 10 seconds (after collecting 10 chunks)
                 if (audioChunks.length === 10) {
-                    console.log("Converting webm to wav...");
+                    console.log("10 audio chunks collected. Preparing to send...");
+
+                    // Check if audioChunks is populated correctly
+                    console.log("audioChunks length:", audioChunks.length);
 
                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
                     try {
+                        console.log("Converting webm to wav...");
                         const wavBlob = await convertWebmToWav(audioBlob);
                         console.log("Converted to wav, sending to Flask app...");
 
@@ -25,14 +29,17 @@ Shiny.addCustomMessageHandler("startTranscription", function(message) {
                             method: 'POST',
                             body: formData
                         })
-                            .then(response => response.json())
+                            .then(response => {
+                                console.log("Flask response:", response);
+                                return response.json();
+                            })
                             .then(data => {
                                 console.log("Transcription received:", data.text);
                                 Shiny.setInputValue("transcribedText", data.text, { priority: "event" });
                             })
                             .catch(error => console.error("Error sending audio to Flask app:", error));
 
-                        // Clear the audio chunks
+                        // Clear the audio chunks after sending
                         audioChunks.length = 0;
                     } catch (error) {
                         console.error("Error converting webm to wav:", error);
@@ -43,6 +50,7 @@ Shiny.addCustomMessageHandler("startTranscription", function(message) {
             mediaRecorder.start();
 
             Shiny.addCustomMessageHandler("stopTranscription", function(message) {
+                console.log("Stop button clicked. Stopping recording...");
                 mediaRecorder.stop();
                 stream.getTracks().forEach(track => track.stop());
             });
