@@ -5,7 +5,7 @@ let socket;
 
 document.addEventListener("DOMContentLoaded", () => {
   // Initialize WebSocket
-  socket = new WebSocket("ws://127.0.0.1:5006");
+  socket = new WebSocket("https://evanozmat.com/socket.io");
 
   // WebSocket event listeners
   socket.onopen = () => console.log("WebSocket connected.");
