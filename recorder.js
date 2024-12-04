@@ -189,37 +189,24 @@ Shiny.addCustomMessageHandler("startRecording", function (message) {
 
       // Enhanced audio data handling
       mediaRecorder.ondataavailable = async (event) => {
-        if (socket && socket.connected) {
-          if (event.data.size > 0) {
-            // Accumulate audio chunks
-            audioChunks.push(event.data);
-
-            try {
-              // Convert WebM chunk to WAV
-              const wavBlob = await convertWebMToWAV(event.data);
-              
-              // Additional type and size validation
-              if (wavBlob && wavBlob.type === 'audio/wav' && wavBlob.size > 0) {
-                console.log("Sending WAV audio chunk", {
-                  mimeType: wavBlob.type,
-                  size: wavBlob.size,
-                  timestamp: new Date().toISOString()
-                });
-                
-                socket.emit("audio_chunk", wavBlob);
-              } else {
-                console.warn("Invalid WAV blob generated");
-              }
-            } catch (error) {
-              console.error("Chunk conversion error:", {
-                message: error.message,
-                name: error.name,
-                stack: error.stack
-              });
+        if (event.data.size > 0) {
+          console.log("Processing audio chunk:", {
+            size: event.data.size,
+            mimeType: event.data.type
+          });
+      
+          try {
+            const wavBlob = await convertWebMToWAV(event.data);
+            if (wavBlob && wavBlob.size > 0) {
+              socket.emit("audio_chunk", wavBlob);
+            } else {
+              console.warn("WAV conversion produced invalid blob.");
             }
-          } else {
-            console.warn("Empty audio chunk received.");
+          } catch (error) {
+            console.error("Error converting chunk to WAV:", error);
           }
+        } else {
+          console.warn("Empty audio chunk received.");
         }
       };
 
