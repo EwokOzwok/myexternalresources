@@ -1,85 +1,65 @@
+// NEW
 let mediaRecorder;
-let audioStream;
+let audioChunks = [];
 let socket;
 
+document.addEventListener("DOMContentLoaded", () => {
+  // Initialize WebSocket
+  socket = new WebSocket("ws://127.0.0.1:5006");
+
+  // WebSocket event listeners
+  socket.onopen = () => console.log("WebSocket connected.");
+  socket.onclose = () => console.log("WebSocket disconnected.");
+  socket.onerror = (error) => console.error("WebSocket error:", error);
+});
+
+// Start recording handler
 Shiny.addCustomMessageHandler("startRecording", function (message) {
-  if (!mediaRecorder || mediaRecorder.state !== "recording") {
-    startRecording();
-  }
-});
-
-Shiny.addCustomMessageHandler("stopRecording", function (message) {
-  if (mediaRecorder && mediaRecorder.state === "recording") {
-    mediaRecorder.stop();
-  }
-});
-
-function startRecording() {
-  // Access the user's microphone
   navigator.mediaDevices
     .getUserMedia({ audio: true })
     .then((stream) => {
-      audioStream = stream;
-
-      // Create a WebSocket connection to Flask
-      socket = new WebSocket("ws://127.0.0.1:5006/socket.io/?EIO=4&transport=websocket");
-
-      socket.onopen = () => {
-        console.log("WebSocket connection established");
-      };
-
-      socket.onclose = () => {
-        console.log("WebSocket connection closed");
-        stopStream();
-      };
-
-      socket.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        stopStream();
-      };
-
-      // Initialize MediaRecorder with the audio stream
-      mediaRecorder = new MediaRecorder(audioStream, {
-        mimeType: "audio/webm",
-      });
-
-      // Handle chunks of audio data
+      mediaRecorder = new MediaRecorder(stream);
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0 && socket.readyState === WebSocket.OPEN) {
-          socket.send(event.data); // Stream audio chunk to Flask app
+        if (event.data.size > 0) {
+          audioChunks.push(event.data);
         }
       };
 
-      mediaRecorder.onerror = (event) => {
-        console.error("MediaRecorder error:", event.error);
-      };
-
       mediaRecorder.onstop = () => {
-        console.log("MediaRecorder stopped");
-        stopStream();
+        const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+        audioChunks = []; // Reset chunks for the next recording
+        sendAudioToFlask(audioBlob);
       };
 
-      // Start recording
-      mediaRecorder.start(250); // Collect audio in 250ms chunks
-      console.log("Recording started");
+      mediaRecorder.start();
+      console.log("Recording started.");
     })
-    .catch((error) => {
-      console.error("Error accessing microphone:", error);
-    });
-}
+    .catch((error) => console.error("Error accessing microphone:", error));
+});
 
-function stopStream() {
-  // Stop the audio stream and WebSocket connection
-  if (audioStream) {
-    const tracks = audioStream.getTracks();
-    tracks.forEach((track) => track.stop());
-    audioStream = null;
+// Stop recording handler
+Shiny.addCustomMessageHandler("stopRecording", function (message) {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    console.log("Recording stopped.");
   }
+});
 
-  if (socket) {
-    socket.close();
-    socket = null;
-  }
+// Send audio file to Flask app
+function sendAudioToFlask(audioBlob) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const audioBuffer = reader.result;
 
-  console.log("Audio stream stopped");
+    // Send the .wav file to the Flask app via WebSocket
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(audioBuffer);
+      console.log("Audio sent to Flask app.");
+    } else {
+      console.error("WebSocket not connected.");
+    }
+  };
+
+  // Convert Blob to ArrayBuffer for WebSocket transmission
+  reader.readAsArrayBuffer(audioBlob);
 }
