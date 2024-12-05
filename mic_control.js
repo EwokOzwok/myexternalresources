@@ -26,7 +26,7 @@ let socket;
          }
        };
 
-       // Start recording audio in 500ms chunks
+       // Start recording audio in 10s chunks
        mediaRecorder.start(10000);
 
        socket.onmessage = (event) => {
