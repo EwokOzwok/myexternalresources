@@ -9,7 +9,7 @@ let socket;
      audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
      // Establish WebSocket connection
-     socket = new WebSocket("wss://mywebsite.com/audiostream");
+     socket = new WebSocket("wss://evanozmat.com/audiostream");
 
      socket.onopen = () => {
        console.log("WebSocket connection established.");
