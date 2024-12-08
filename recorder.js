@@ -4,8 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let isRecording = false;
   let intervalId;
 
-  const startButton = document.getElementById('start_recording');
-  const stopButton = document.getElementById('stop_recording');
   setTimeout(() => {
       const startButton = document.getElementById('start_recording');
       // const restartButton = document.getElementById('restart_recording');
