@@ -5,9 +5,16 @@ document.addEventListener('DOMContentLoaded', () => {
   let intervalId;
 
   const startButton = document.getElementById('start_recording');
-  // const restartButton = document.getElementById('restart_recording');
   const stopButton = document.getElementById('stop_recording');
-
+  setTimeout(() => {
+      const startButton = document.getElementById('start_recording');
+      // const restartButton = document.getElementById('restart_recording');
+      const stopButton = document.getElementById('stop_recording');
+  
+      console.log('startButton:', startButton); // Should not be null
+      // console.log('restartButton:', startButton); // Should not be null
+      console.log('stopButton:', stopButton);   // Should not be null
+    }, 5000); // Delay for 500ms
   const sendAudio = () => {
     if (audioChunks.length > 0) {
       console.log('Audio chunks length:', audioChunks.length);
