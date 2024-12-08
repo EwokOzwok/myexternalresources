@@ -4,7 +4,7 @@ let mediaRecorder;
   let intervalId;
 
   const startButton = document.getElementById('start_recording');
-  const restartButton = document.getElementById('restart_recording');
+  // const restartButton = document.getElementById('restart_recording');
   const stopButton = document.getElementById('stop_recording');
 
   const sendAudio = () => {
@@ -36,54 +36,7 @@ let mediaRecorder;
 
     // Disable the start and enable the stop button
     startButton.disabled = true;
-    restartButton.disabled = true;
-    stopButton.disabled = false;
-
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-      console.log('Microphone access granted:', stream);
-
-      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      console.log('MediaRecorder initialized:', mediaRecorder);
-
-      // Important change: Collect data every timeslice
-      mediaRecorder.start(1000); // Collect data every 1 second
-      console.log('MediaRecorder started.');
-
-      mediaRecorder.addEventListener('dataavailable', event => {
-        if (event.data.size > 0) {
-          console.log('Data available event triggered, chunk size:', event.data.size);
-          audioChunks.push(event.data);
-        } else {
-          console.log('Data available event triggered, but chunk is empty.');
-        }
-      });
-
-      // Clear any existing interval before starting a new one
-      if (intervalId) clearInterval(intervalId);
-
-      // Send audio every 8 seconds
-      intervalId = setInterval(() => {
-        if (isRecording) {
-          console.log('Sending audio to R...');
-          sendAudio();
-        }
-      }, 8000);
-      console.log('Interval ID set:', intervalId);
-    }).catch(err => {
-      console.error('Error accessing microphone:', err);
-    });
-  });
-
-
-  restartButton.addEventListener('click', () => {
-    audioChunks = []; // Reset chunks before recording
-    if (isRecording) return; // Prevent multiple starts
-    isRecording = true;
-    console.log('Starting recording...');
-
-    // Disable the start and enable the stop button
-    startButton.disabled = true;
-    restartButton.disabled = true;
+    // restartButton.disabled = true;
     stopButton.disabled = false;
 
     navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
@@ -144,7 +97,7 @@ let mediaRecorder;
 
       // Disable the stop button and re-enable the start button
       startButton.disabled = false;
-      restartButton.disabled = false;
+      // restartButton.disabled = false;
       stopButton.disabled = true;
 
       console.log('Recording stopped, all activity halted.');
