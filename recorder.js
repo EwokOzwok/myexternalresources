@@ -1,168 +1,104 @@
-// Enhanced Recorder.js for Robust Audio Recording and Conversion
 let mediaRecorder;
-let audioChunks = [];
-let mediaStream;
-let socket;
-let audioContext;
-let audioContextCreatedAt;
+  let audioChunks = [];
+  let isRecording = false;
+  let intervalId;
 
-// Global unhandled promise rejection handler
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unhandled promise rejection:', event.reason);
-});
+  const startButton = document.getElementById('start_recording');
+  const stopButton = document.getElementById('stop_recording');
 
-// Improved function to convert WebM to WAV
-async function convertWebMToWAV(webmBlob) {
-  // Consolidate AudioContext management
-  if (!audioContext || (audioContextCreatedAt && Date.now() - audioContextCreatedAt > 5 * 60 * 1000)) {
-    if (audioContext) {
-      audioContext.close();
+  const sendAudio = () => {
+    if (audioChunks.length > 0) {
+      console.log('Audio chunks length:', audioChunks.length);
+      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+      console.log('Audio Blob created:', audioBlob);
+
+      // Don't clear chunks here, let them accumulate until stop
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        console.log('Base64 audio data (first 100 chars):', reader.result.slice(0, 100));
+        // Shiny.setInputValue('audio_data', reader.result);
+        Shiny.setInputValue('audio_data', reader.result + `|${Date.now()}`);
+
+      };
+      reader.readAsDataURL(audioBlob);
+    } else {
+      console.log('No audio chunks to send.');
     }
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    audioContextCreatedAt = Date.now();
-  }
+  };
 
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const arrayBuffer = e.target.result;
-        const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-        const wavBlob = bufferToWave(audioBuffer, audioBuffer.length);
-        resolve(wavBlob);
-      } catch (error) {
-        console.error("Error converting WebM to WAV:", error);
-        reject(error);
-      }
-    };
+  startButton.addEventListener('click', () => {
+    audioChunks = []; // Reset chunks before recording
+    if (isRecording) return; // Prevent multiple starts
+    isRecording = true;
+    console.log('Starting recording...');
 
-    reader.onerror = (error) => {
-      console.error('FileReader error:', error);
-      reject(error);
-    };
+    // Disable the start and enable the stop button
+    startButton.disabled = true;
+    stopButton.disabled = false;
 
-    reader.readAsArrayBuffer(webmBlob);
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+      console.log('Microphone access granted:', stream);
+
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      console.log('MediaRecorder initialized:', mediaRecorder);
+
+      // Important change: Collect data every timeslice
+      mediaRecorder.start(1000); // Collect data every 1 second
+      console.log('MediaRecorder started.');
+
+      mediaRecorder.addEventListener('dataavailable', event => {
+        if (event.data.size > 0) {
+          console.log('Data available event triggered, chunk size:', event.data.size);
+          audioChunks.push(event.data);
+        } else {
+          console.log('Data available event triggered, but chunk is empty.');
+        }
+      });
+
+      // Clear any existing interval before starting a new one
+      if (intervalId) clearInterval(intervalId);
+
+      // Send audio every 8 seconds
+      intervalId = setInterval(() => {
+        if (isRecording) {
+          console.log('Sending audio to R...');
+          sendAudio();
+        }
+      }, 8000);
+      console.log('Interval ID set:', intervalId);
+    }).catch(err => {
+      console.error('Error accessing microphone:', err);
+    });
   });
-}
 
-// Enhanced helper function to convert AudioBuffer to WAV Blob
-function bufferToWave(abuffer, len) {
-  const numOfChan = abuffer.numberOfChannels;
-  const length = len * numOfChan * 2 + 44;
-  const buffer = new ArrayBuffer(length);
-  const view = new DataView(buffer);
-  const channels = [];
-  let sample, offset = 0, pos = 0;
+  stopButton.addEventListener('click', () => {
+    if (isRecording) {
+      console.log('Stopping recording...');
+      // Stop the media recorder
+      mediaRecorder.stop();
+      mediaRecorder = null; // Reset MediaRecorder
+      isRecording = false;
 
-  writeUTFBytes(view, pos, 'RIFF'); pos += 4;
-  view.setUint32(pos, length - 8, true); pos += 4;
-  writeUTFBytes(view, pos, 'WAVE'); pos += 4;
-  writeUTFBytes(view, pos, 'fmt '); pos += 4;
-  view.setUint32(pos, 16, true); pos += 4;
-  view.setUint16(pos, 1, true); pos += 2;
-  view.setUint16(pos, numOfChan, true); pos += 2;
-  view.setUint32(pos, abuffer.sampleRate, true); pos += 4;
-  view.setUint32(pos, abuffer.sampleRate * 2 * numOfChan, true); pos += 4;
-  view.setUint16(pos, numOfChan * 2, true); pos += 2;
-  view.setUint16(pos, 16, true); pos += 2;
-  writeUTFBytes(view, pos, 'data'); pos += 4;
-  view.setUint32(pos, length - pos - 4, true); pos += 4;
+      // Clear the interval so no more audio is sent
+      if (intervalId) {
+        clearInterval(intervalId);
+        console.log('Cleared interval ID:', intervalId);
+      }
 
-  for (let i = 0; i < abuffer.numberOfChannels; i++) {
-    channels.push(abuffer.getChannelData(i));
-  }
+      // Clear all audio chunks so they are not sent anymore
+      audioChunks = [];
+      console.log('Audio chunks cleared.');
 
-  while (pos < length) {
-    for (let i = 0; i < numOfChan; i++) {
-      sample = channels[i][offset];
-      sample = Math.max(-1, Math.min(1, sample));
-      sample = sample < 0 ? sample * 32768 : sample * 32767;
-      view.setInt16(pos, sample | 0, true);
-      pos += 2;
+      // Send remaining chunks one last time (if any)
+      sendAudio();
+
+      // Disable the stop button and re-enable the start button
+      startButton.disabled = false;
+      stopButton.disabled = true;
+
+      console.log('Recording stopped, all activity halted.');
+    } else {
+      console.log('MediaRecorder not initialized.');
     }
-    offset++;
-  }
-
-  return new Blob([buffer], { type: 'audio/wav' });
-}
-
-// Helper function to write UTF8 bytes
-function writeUTFBytes(view, offset, string) {
-  for (let i = 0; i < string.length; i++) {
-    view.setUint8(offset + i, string.charCodeAt(i));
-  }
-}
-
-// Custom handler to start recording
-Shiny.addCustomMessageHandler("startRecording", function (message) {
-  audioChunks = []; // Reset audioChunks
-  if (!mediaRecorder || mediaRecorder.state === "inactive") {
-    navigator.mediaDevices.getUserMedia({
-      audio: {
-        sampleRate: 16000,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    })
-      .then((stream) => {
-        mediaStream = stream;
-        mediaRecorder = new MediaRecorder(stream, {
-          mimeType: "audio/webm; codecs=opus",
-          audioBitsPerSecond: 128000,
-        });
-
-        socket = io.connect("https://evanozmat.com", {
-          path: "/socket.io/",
-          transports: ["websocket"],
-          reconnection: true,
-          reconnectionAttempts: 5,
-          reconnectionDelay: 1000,
-        });
-
-        socket.on("connect", () => console.log("Socket.IO connected."));
-        socket.on("transcription", (data) => Shiny.setInputValue("transcription", data.text));
-        socket.on("connect_error", (error) => alert("Connection error."));
-        socket.on("disconnect", (reason) => console.log("Socket.IO disconnected:", reason));
-
-        mediaRecorder.ondataavailable = async (event) => {
-          if (event.data.size > 0) {
-            try {
-              const wavBlob = await convertWebMToWAV(event.data);
-              if (wavBlob) socket.emit("audio_chunk", wavBlob);
-            } catch (error) {
-              console.error("Error processing audio chunk:", error);
-            }
-          }
-        };
-
-        mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-          audioChunks = [];
-          try {
-            const wavBlob = await convertWebMToWAV(audioBlob);
-            const audioUrl = URL.createObjectURL(wavBlob);
-            const audio = document.getElementById("audioPlayback");
-            if (audio) {
-              audio.src = audioUrl;
-              audio.onloadedmetadata = () => URL.revokeObjectURL(audioUrl);
-            }
-          } catch (error) {
-            console.error("Error finalizing audio:", error);
-          }
-          mediaStream.getTracks().forEach((track) => track.stop());
-          socket.disconnect();
-        };
-
-        mediaRecorder.start(5000);
-      })
-      .catch((error) => alert("Microphone access failed."));
-  }
-});
-
-// Custom handler to stop recording
-Shiny.addCustomMessageHandler("stopRecording", function (message) {
-  if (mediaRecorder && mediaRecorder.state === "recording") {
-    mediaRecorder.stop();
-  }
-});
+  });
