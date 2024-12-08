@@ -1,114 +1,92 @@
 document.addEventListener('DOMContentLoaded', () => {
-  let mediaRecorder;
-  let audioChunks = [];
-  let isRecording = false;
-  let intervalId;
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
+    let intervalId;
+    let stream;
 
-  setTimeout(() => {
+    const checkButtonsExist = setInterval(() => {
       const startButton = document.getElementById('start_recording');
-      // const restartButton = document.getElementById('restart_recording');
       const stopButton = document.getElementById('stop_recording');
-  
-      console.log('startButton:', startButton); // Should not be null
-      // console.log('restartButton:', startButton); // Should not be null
-      console.log('stopButton:', stopButton);   // Should not be null
-    }, 5000); // Delay for 500ms
-  const sendAudio = () => {
-    if (audioChunks.length > 0) {
-      console.log('Audio chunks length:', audioChunks.length);
-      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-      console.log('Audio Blob created:', audioBlob);
 
-      // Don't clear chunks here, let them accumulate until stop
+      if (startButton && stopButton) {
+        clearInterval(checkButtonsExist);
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        console.log('Base64 audio data (first 100 chars):', reader.result.slice(0, 100));
-        // Shiny.setInputValue('audio_data', reader.result);
-        Shiny.setInputValue('audio_data', reader.result + `|${Date.now()}`);
-      };
-      reader.readAsDataURL(audioBlob);
-    } else {
-      console.log('No audio chunks to send.');
-    }
-  };
+        const sendAudio = () => {
+          if (audioChunks.length > 0) {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const reader = new FileReader();
+            reader.onload = () => {
+              Shiny.setInputValue('audio_data', reader.result + `|${Date.now()}`);
+            };
+            reader.readAsDataURL(audioBlob);
+          }
+        };
 
-  startButton.addEventListener('click', () => {
-    audioChunks = []; // Reset chunks before recording
-    if (isRecording) return; // Prevent multiple starts
-    isRecording = true;
-    console.log('Starting recording...');
+        startButton.addEventListener('click', () => {
+          if (isRecording) return;
 
-    // Disable the start and enable the stop button
-    startButton.disabled = true;
-    // restartButton.disabled = true;
-    stopButton.disabled = false;
+          audioChunks = [];
+          isRecording = true;
+          startButton.disabled = true;
+          stopButton.disabled = false;
 
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-      console.log('Microphone access granted:', stream);
+          navigator.mediaDevices.getUserMedia({ audio: true }).then(userStream => {
+            stream = userStream;
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
-      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      console.log('MediaRecorder initialized:', mediaRecorder);
+            mediaRecorder.addEventListener('dataavailable', event => {
+              if (event.data.size > 0 && isRecording) {
+                audioChunks.push(event.data);
+              }
+            });
 
-      // Important change: Collect data every timeslice
-      mediaRecorder.start(1000); // Collect data every 1 second
-      console.log('MediaRecorder started.');
+            mediaRecorder.start(1000);
 
-      mediaRecorder.addEventListener('dataavailable', event => {
-        if (event.data.size > 0) {
-          console.log('Data available event triggered, chunk size:', event.data.size);
-          audioChunks.push(event.data);
-        } else {
-          console.log('Data available event triggered, but chunk is empty.');
-        }
-      });
+            // Clear any existing interval before starting a new one
+            if (intervalId) clearInterval(intervalId);
 
-      // Clear any existing interval before starting a new one
-      if (intervalId) clearInterval(intervalId);
+            intervalId = setInterval(() => {
+              if (isRecording) {
+                sendAudio();
+              }
+            }, 8000);
+          }).catch(err => {
+            console.error('Error accessing microphone:', err);
+          });
+        });
 
-      // Send audio every 8 seconds
-      intervalId = setInterval(() => {
-        if (isRecording) {
-          console.log('Sending audio to R...');
+        stopButton.addEventListener('click', () => {
+          if (!isRecording) return;
+
+          // Stop the media recorder
+          if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+          }
+
+          // Stop all stream tracks
+          if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+          }
+
+          // Clear interval
+          if (intervalId) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+
+          // Send final audio chunks
           sendAudio();
-        }
-      }, 8000);
-      console.log('Interval ID set:', intervalId);
-    }).catch(err => {
-      console.error('Error accessing microphone:', err);
-    });
-  });
 
+          // Reset state
+          isRecording = false;
+          audioChunks = [];
+          stream = null;
 
-  stopButton.addEventListener('click', () => {
-    if (isRecording) {
-      console.log('Stopping recording...');
-      // Stop the media recorder
-      mediaRecorder.stop();
-      mediaRecorder = null; // Reset MediaRecorder
-      isRecording = false;
-
-      // Clear the interval so no more audio is sent
-      if (intervalId) {
-        clearInterval(intervalId);
-        console.log('Cleared interval ID:', intervalId);
+          // Toggle button states
+          startButton.disabled = false;
+          stopButton.disabled = true;
+        });
       }
-
-      // Clear all audio chunks so they are not sent anymore
-      audioChunks = [];
-      console.log('Audio chunks cleared.');
-
-      // Send remaining chunks one last time (if any)
-      sendAudio();
-
-      // Disable the stop button and re-enable the start button
-      startButton.disabled = false;
-      // restartButton.disabled = false;
-      stopButton.disabled = true;
-
-      console.log('Recording stopped, all activity halted.');
-    } else {
-      console.log('MediaRecorder not initialized.');
-    }
+    }, 100);
   });
-});
