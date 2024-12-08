@@ -1,4 +1,5 @@
-let mediaRecorder;
+document.addEventListener('DOMContentLoaded', () => {
+  let mediaRecorder;
   let audioChunks = [];
   let isRecording = false;
   let intervalId;
@@ -20,7 +21,6 @@ let mediaRecorder;
         console.log('Base64 audio data (first 100 chars):', reader.result.slice(0, 100));
         // Shiny.setInputValue('audio_data', reader.result);
         Shiny.setInputValue('audio_data', reader.result + `|${Date.now()}`);
-
       };
       reader.readAsDataURL(audioBlob);
     } else {
@@ -74,6 +74,7 @@ let mediaRecorder;
     });
   });
 
+
   stopButton.addEventListener('click', () => {
     if (isRecording) {
       console.log('Stopping recording...');
@@ -105,3 +106,4 @@ let mediaRecorder;
       console.log('MediaRecorder not initialized.');
     }
   });
+});
