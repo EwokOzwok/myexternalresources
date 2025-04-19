@@ -161,6 +161,7 @@ input[type=date],input[type=datetime-local],input[type=email],input[type=month],
     display: none !important;
 }
 
+/* Positioning arrows for Next and Back buttons */
 .introjs-button::after {
     content: attr(aria-label);
     position: absolute;
@@ -170,12 +171,53 @@ input[type=date],input[type=datetime-local],input[type=email],input[type=month],
     white-space: nowrap;
 }
 
+/* Next Arrow */
+.introjs-nextbutton::after {
+    content: "→";
+    font-size: 1.5rem;
+    color: white;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Previous Arrow */
+.introjs-prevbutton::after {
+    content: "←";
+    font-size: 1.5rem;
+    color: white;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Button width adjustments */
+.introjs-nextbutton, .introjs-prevbutton {
+    width: 40px;  /* Make buttons wide enough to contain the arrows */
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;  /* Make them round */
+}
+
 /* Responsive width on smaller screens */
 @media (max-width: 500px) {
     .introjs-tooltip {
         max-width: 90% !important;
         font-size: 1rem !important;
         padding: 16px !important;
+    }
+
+    .introjs-nextbutton, .introjs-prevbutton {
+        width: 35px;  /* Smaller size on mobile */
+        height: 35px;
+    }
+
+    .introjs-nextbutton::after, .introjs-prevbutton::after {
+        font-size: 1.2rem;
     }
 }
 
