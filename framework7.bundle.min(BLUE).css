@@ -100,83 +100,82 @@ input[type=date],input[type=datetime-local],input[type=email],input[type=month],
 
 /* Tour Modal CSS */
 .introjs-tooltip {
-  background-color: #3D52A0 !important;
-  color: #E3E7F4 !important;
-  border-radius: 12px !important;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.25) !important;
-  font-family: 'system-ui', sans-serif !important;
-  font-size: 1.05rem !important;
-  padding: 20px !important;
-  min-width: 320px !important;
-  max-width: 600px !important;
-  width: auto !important;
-  line-height: 1.5;
-  text-align: left;
-  word-wrap: break-word;
-  overflow-wrap: break-word;
+    background-color: #3D52A0 !important;
+    color: #E3E7F4 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.25) !important;
+    font-family: 'system-ui', sans-serif !important;
+    font-size: 1.05rem !important;
+    padding: 20px !important;
+    min-width: 320px !important;
+    max-width: 600px !important;
+    width: auto !important;
+    line-height: 1.5;
+    text-align: left;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 /* Headings inside tooltip */
-.introjs-tooltip h3,
-.introjs-tooltip h4 {
-  color: #FFFFFF !important;
-  margin: 10px 0;
+.introjs-tooltip h3, .introjs-tooltip h4 {
+    color: #FFFFFF !important;
+    margin: 10px 0;
 }
 
 .introjs-tooltip h3 {
-  font-size: 1.4rem;
-  font-weight: 600;
-  text-decoration: underline;
+    font-size: 1.4rem;
+    font-weight: 600;
+    text-decoration: underline;
 }
 
 .introjs-tooltip h4 {
-  font-size: 1.1rem;
-  font-weight: 400;
+    font-size: 1.1rem;
+    font-weight: 400;
 }
 
 /* Buttons */
 .introjs-button {
-  background-color: #4354B1 !important;
-  color: white !important;
-  border-radius: 8px !important;
-  padding: 6px 12px !important;
-  font-size: 1rem !important;
-  box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.2);
-  border: none;
-  position: relative;
+    background-color: #4354B1 !important;
+    color: white !important;
+    border-radius: 8px !important;
+    padding: 6px 12px !important;
+    font-size: 1rem !important;
+    box-shadow: 1px 1px 4px rgba(0, 0, 0, 0.2);
+    border: none;
+    position: relative;
 }
 
 /* Button hover */
 .introjs-button:hover {
-  background-color: #5f6cd1 !important;
+    background-color: #5f6cd1 !important;
 }
 
 /* Skip button */
 .introjs-skipbutton {
-  color: #E3E7F4 !important;
-  font-size: 0.9rem !important;
+    color: #E3E7F4 !important;
+    font-size: 0.9rem !important;
 }
 
 /* Fix duplicated button text */
 .introjs-tooltipbuttons .introjs-button span {
-  display: none !important;
+    display: none !important;
 }
 
 .introjs-button::after {
-  content: attr(aria-label);
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  white-space: nowrap;
+    content: attr(aria-label);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    white-space: nowrap;
 }
 
 /* Responsive width on smaller screens */
 @media (max-width: 500px) {
-  .introjs-tooltip {
-    max-width: 90% !important;
-    font-size: 1rem !important;
-    padding: 16px !important;
-  }
+    .introjs-tooltip {
+        max-width: 90% !important;
+        font-size: 1rem !important;
+        padding: 16px !important;
+    }
 }
 
