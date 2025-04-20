@@ -231,9 +231,10 @@ input[type=date],input[type=datetime-local],input[type=email],input[type=month],
 }
 
 /* Stack vertically on narrow screens */
-@media (max-width: 400px) {
+@media (max-width: 500px) {
   .account-card {
     flex: 1 1 100%;
     min-width: 100%;
+    padding: 0px !important;
   }
 }
