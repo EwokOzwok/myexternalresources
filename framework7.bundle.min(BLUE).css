@@ -222,3 +222,18 @@ input[type=date],input[type=datetime-local],input[type=email],input[type=month],
 }
 
 
+
+/* Responsive design for all account-card class */
+.account-card {
+  flex: 1 1 50%;
+  min-width: 300px;
+  padding: 8px;
+}
+
+/* Stack vertically on narrow screens */
+@media (max-width: 400px) {
+  .account-card {
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
+}
