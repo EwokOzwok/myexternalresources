@@ -238,3 +238,15 @@ input[type=date],input[type=datetime-local],input[type=email],input[type=month],
     padding: 0px !important;
   }
 }
+
+
+
+@media (max-width: 768px) {
+  #helpbutton_login,
+  #helpbutton_transcript,
+  #helpbutton_summary,
+  #helpbutton_custom,
+  #helpbutton_userprofile {
+    display: none !important;
+  }
+}
