@@ -250,3 +250,48 @@ input[type=date],input[type=datetime-local],input[type=email],input[type=month],
     display: none !important;
   }
 }
+
+
+/* Fix toast container appearance */
+.toast.toast-center.toast-with-icon.modal-in {
+  max-width: 100%;
+  padding: 20px;
+  background-color: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  font-family: system-ui, sans-serif;
+}
+
+/* Adjust text inside the toast */
+.toast .toast-text {
+  font-size: 1rem;
+  color: #333;
+  margin-top: 20px;
+  align-items: center;
+}
+
+/* Style the button row */
+.toast .toast-text .row {
+  gap: 30px;
+  margin-top: 8px;
+  padding-right: 20px;
+    
+  justify-content: center;
+  align-items: center;
+}
+
+/* Buttons within the toast */
+.toast .toast-button.button {
+  font-size: 0.95rem;
+  border-radius: 6px;
+  text-align: center;
+  min-width: 200px;
+  flex: auto;
+}
+
+/* Override default .col layout */
+.toast .toast-button.col {
+  flex: 0 0 auto !important;
+  width: auto !important;
+}
+
