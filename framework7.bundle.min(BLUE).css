@@ -81,7 +81,7 @@ input[type=date],input[type=datetime-local],input[type=email],input[type=month],
   resize: vertical;
   background: #3d52a0;
   border: 1px solid #00000087;
-  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.71);
+  box-shadow: 2px rgba(0, 0, 0, 0.71);
   border-radius: 20px;
   padding: 10px;
   font-family: inherit;
